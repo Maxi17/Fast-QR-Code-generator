@@ -23,6 +23,13 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.checker.index.qual.IndexFor;
+import org.checkerframework.checker.index.qual.LTLengthOf;
+import org.checkerframework.checker.index.qual.NonNegative;
+import org.checkerframework.checker.index.qual.SameLen;
+import org.checkerframework.common.value.qual.IntRange;
+import org.checkerframework.common.value.qual.MinLen;
+
 import java.lang.ref.SoftReference;
 import java.util.Arrays;
 import java.util.Objects;
@@ -32,7 +39,8 @@ final class ReedSolomonGenerator {
 	
 	/*---- Factory members ----*/
 	
-	public static ReedSolomonGenerator getInstance(int degree) {
+	public static ReedSolomonGenerator getInstance(@IntRange(from = 1, to = MAX_DEGREE) int degree) {
+		// An exception is thrown if degree is lower than 1 and bigger than MAX_DEGREE
 		if (degree < 1 || degree > MAX_DEGREE)
 			throw new IllegalArgumentException("Degree out of range");
 		
@@ -89,10 +97,15 @@ final class ReedSolomonGenerator {
 	// 'coefficients' is the temporary array representing the coefficients of the divisor polynomial,
 	// stored from highest to lowest power, excluding the leading term which is always 1.
 	// For example the polynomial x^3 + 255x^2 + 8x + 93 is stored as the uint8 array {255, 8, 93}.
-	private byte[][] polynomialMultiply;
-	
-	
-	private ReedSolomonGenerator(int degree) {
+	private byte @MinLen(1) [] @MinLen(1) [] polynomialMultiply;
+	// We try to access polynomialMultiply[0] and degree is greater than 1, so this matrix should be at least 1x1
+
+	@SuppressWarnings("index")
+	// This warning suppression is needed just for the attempt to access the polynomialMultiply[i] array on line 133
+	// with j. This is a false positive because I already made sure degree is between 1 and 255, but the checker doesn't
+	// recognize degree as a valid stopping condition. The checker doesn't issue any warning for the attempt to access
+	// polynomialMultiply with index i on line 131, so I guess it's because it knows to stop at polynomialMultiply.length.
+	private ReedSolomonGenerator(@IntRange(from = 1,to = 255) int degree) { // A valid degree is between 1 and 255, just like above
 		if (degree < 1 || degree > 255)
 			throw new IllegalArgumentException("Degree out of range");
 		
@@ -118,11 +131,20 @@ final class ReedSolomonGenerator {
 		for (int i = 0; i < polynomialMultiply.length; i++) {
 			for (int j = 0; j < degree; j++)
 				polynomialMultiply[i][j] = (byte)multiply(i, coefficients[j] & 0xFF);
+				// There is no need to worry about accessing array coefficients with j, as it haas the same length as polynomialMultiply.
 		}
 	}
 	
-	
-	public void getRemainder(byte[] data, int dataOff, int dataLen, byte[] result) {
+	@SuppressWarnings("index")
+	// There are many warnings here. Firstly, we get a warning that result should have at least one element, but it is
+	// obvious because we made sure it has the same length as polynomialMultiply[0], which is known to have at least one
+	// element. Next one, trying to access polynomialMultiply with an index of (data[i] ^ result[0]) & 0xFF is safe because
+	// the result of this operation is an 8-bit integer and polynomialMultiply has its length exactly 256 (documentation).
+	// The next 2 warnings are explained at the method before this one. The final one, table can be accessed with degree - 1
+	// because it has the same length as polynomialMultiply[i], which means at least 1.
+	public void getRemainder(byte[] data, @IndexFor("#1") int dataOff, @NonNegative @LTLengthOf(value = "#1",offset = "#2") int dataLen, byte @SameLen("this.polynomialMultiply[0]")[] result) {
+		// We need dataOff to be within data bounds. The annotation of dataLen makes sense when we look at the stopping condition
+		// of the for loop on line 149. Also, we need result to be the same length as polynomialMultiply[0] for the assertion below.
 		Objects.requireNonNull(data);
 		Objects.requireNonNull(result);
 		int degree = polynomialMultiply[0].length;
@@ -141,7 +163,7 @@ final class ReedSolomonGenerator {
 	
 	
 	/*---- Constant members ----*/
-	
+
 	// Returns the product of the two given field elements modulo GF(2^8/0x11D). The arguments and result
 	// are unsigned 8-bit integers. This could be implemented as a lookup table of 256*256 entries of uint8.
 	private static int multiply(int x, int y) {

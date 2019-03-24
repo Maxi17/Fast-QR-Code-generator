@@ -23,6 +23,9 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.checker.index.qual.IndexFor;
+import org.checkerframework.checker.index.qual.NonNegative;
+
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -33,10 +36,10 @@ import java.util.Objects;
 final class BitBuffer {
 	
 	/*---- Fields ----*/
-	
+
 	int[] data;
 	
-	int bitLength;
+	@NonNegative int bitLength;
 	
 	
 	
@@ -58,7 +61,11 @@ final class BitBuffer {
 	 * Returns the length of this sequence, which is a non-negative value.
 	 * @return the length of this sequence
 	 */
-	public int getBit(int index) {
+	@SuppressWarnings("index")
+	// There is one error related to an attempt to access an array using a bitwise operation on bitLength.
+	// Because bitLength >>> 5 has the same effect as bitLength /= 32, we can safely
+	// assume that if bitLength is non negative, then so is bitLength / 32.
+	public int getBit(@NonNegative int index) {
 		if (index < 0 || index >= bitLength)
 			throw new IndexOutOfBoundsException();
 		return (data[index >>> 5] >>> ~index) & 1;
@@ -70,6 +77,9 @@ final class BitBuffer {
 	 * in big endian. The current bit length must be a multiple of 8.
 	 * @return a new byte array (not {@code null}) representing this bit sequence
 	 */
+	@SuppressWarnings("index")
+	// Again, the error is issued by the attempt of accessing the data array with an index that is obtained after a
+	// bitwise operation. Since i >>> 2 has the same effect as i /= 4, it stays non-negative and smaller than result.length
 	public byte[] getBytes() {
 		if (bitLength % 8 != 0)
 			throw new IllegalStateException("Data is not a whole number of bytes");
@@ -89,7 +99,11 @@ final class BitBuffer {
 	 * @throws IllegalStateException if appending the data
 	 * would make bitLength exceed Integer.MAX_VALUE
 	 */
-	public void appendBits(int val, int len) {
+	@SuppressWarnings("index")
+	// There are 2 errors below, both related to the attempt to access data array using a
+	// bitwise operation on bitLength. Because bitLength >>> 5 has the same effect as bitLength / 32, we can safely
+	// assume that if bitLength is non negative, then so is bitLength / 32.
+	public void appendBits(int val, @NonNegative int len) {
 		if (len < 0 || len > 31 || val >>> len != 0)
 			throw new IllegalArgumentException("Value out of range");
 		if (len > Integer.MAX_VALUE - bitLength)
@@ -98,7 +112,6 @@ final class BitBuffer {
 		if (bitLength + len + 1 > data.length << 5)
 			data = Arrays.copyOf(data, data.length * 2);
 		assert bitLength + len <= data.length << 5;
-		
 		int remain = 32 - (bitLength & 0x1F);
 		assert 1 <= remain && remain <= 32;
 		if (remain < len) {
@@ -122,13 +135,18 @@ final class BitBuffer {
 	 * @throws IllegalStateException if appending the data
 	 * would make bitLength exceed Integer.MAX_VALUE
 	 */
-	public void appendBits(int[] vals, int len) {
+	@SuppressWarnings("index")
+	// The reason why bitLength >>> 5 is safe has been explained at the above method.
+	// Another warning suppressed here was related to the call of System.arraycopy. The call is safe because 0 is an index
+	// of vals, bitLength / 32 is an index of data and (len + 31) / 32 is correct as it was checked in the if statements
+	// above it. These are len > vals.length * 32L and len > Integer.MAX_VALUE - bitLength.
+	public void appendBits(int[] vals, @NonNegative int len) {
 		Objects.requireNonNull(vals);
 		if (len == 0)
 			return;
 		if (len < 0 || len > vals.length * 32L)
 			throw new IllegalArgumentException("Value out of range");
-		int wholeWords = len / 32;
+		@IndexFor("#1") int wholeWords = len / 32;
 		int tailBits = len % 32;
 		if (tailBits > 0 && vals[wholeWords] << tailBits != 0)
 			throw new IllegalArgumentException("Last word must have low bits clear");
@@ -137,7 +155,7 @@ final class BitBuffer {
 		
 		while (bitLength + len > data.length * 32)
 			data = Arrays.copyOf(data, data.length * 2);
-		
+
 		int shift = bitLength % 32;
 		if (shift == 0) {
 			System.arraycopy(vals, 0, data, bitLength / 32, (len + 31) / 32);
