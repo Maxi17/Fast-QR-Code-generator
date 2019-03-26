@@ -23,6 +23,9 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.common.value.qual.IntRange;
+import org.checkerframework.common.value.qual.MinLen;
+
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
 import java.util.List;
@@ -141,7 +144,7 @@ public final class QrCode {
 	 * @throws DataTooLongException if the segments fail to fit in
 	 * the maxVersion QR Code at the ECL, which means they are too long
 	 */
-	public static QrCode encodeSegments(List<QrSegment> segs, Ecc ecl, int minVersion, int maxVersion, int mask, boolean boostEcl) {
+	public static QrCode encodeSegments(List<QrSegment> segs, Ecc ecl, @IntRange(from = MIN_VERSION) int minVersion, @IntRange(to = MAX_VERSION) int maxVersion, @IntRange(from = -1, to = 7) int mask, boolean boostEcl) {
 		Objects.requireNonNull(segs);
 		Objects.requireNonNull(ecl);
 		if (!(MIN_VERSION <= minVersion && minVersion <= maxVersion && maxVersion <= MAX_VERSION) || mask < -1 || mask > 7)
@@ -582,7 +585,7 @@ public final class QrCode {
 	// Tests whether the given run history has the pattern of ratio 1:1:3:1:1 in the middle, and
 	// surrounded by at least 4 on either or both ends. A helper function for getPenaltyScore().
 	// Must only be called immediately after a run of white modules has ended.
-	private static boolean hasFinderLikePattern(int[] runHistory) {
+	private static boolean hasFinderLikePattern(int @MinLen(7) [] runHistory) {
 		int n = runHistory[1];
 		return n > 0 && runHistory[2] == n && runHistory[4] == n && runHistory[5] == n
 			&& runHistory[3] == n * 3 && Math.max(runHistory[0], runHistory[6]) >= n * 4;

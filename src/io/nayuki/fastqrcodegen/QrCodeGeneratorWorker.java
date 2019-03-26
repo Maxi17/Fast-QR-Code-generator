@@ -44,7 +44,7 @@ public final class QrCodeGeneratorWorker {
 		}
 	}
 	
-	
+	@SuppressWarnings("cast") // Casting b to a byte on line 64 issued a warning. I believe it is a false positive, similar to Issue #2367
 	private static boolean processCase(Scanner input) {
 		// Read data length or exit
 		int length = input.nextInt();
@@ -55,7 +55,8 @@ public final class QrCodeGeneratorWorker {
 		
 		// Read data bytes
 		boolean isAscii = true;
-		byte[] data = new byte[length];
+		@SuppressWarnings("index")
+		byte[] data = new byte[length]; // Assume user inputs a non-negative length.
 		for (int i = 0; i < data.length; i++) {
 			int b = input.nextInt();
 			if (b < 0 || b > 255)

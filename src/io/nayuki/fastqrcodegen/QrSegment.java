@@ -23,6 +23,10 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.checker.index.qual.IndexFor;
+import org.checkerframework.checker.index.qual.NonNegative;
+import org.checkerframework.common.value.qual.IntRange;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +60,8 @@ public final class QrSegment {
 	 * @return a segment (not {@code null}) containing the data
 	 * @throws NullPointerException if the array is {@code null}
 	 */
+	@SuppressWarnings("index") // Since the 'bits' array has 4 times less elements as 'data' (line 67), accessing it on
+	// line 69 with an index 4 times smaller than the one used to access 'data' array is a safe operation.
 	public static QrSegment makeBytes(byte[] data) {
 		Objects.requireNonNull(data);
 		if (data.length * 8L > Integer.MAX_VALUE)
@@ -106,13 +112,14 @@ public final class QrSegment {
 	 * @throws NullPointerException if the string is {@code null}
 	 * @throws IllegalArgumentException if the string contains non-encodable characters
 	 */
+	@SuppressWarnings("index") //
 	public static QrSegment makeAlphanumeric(String text) {
 		Objects.requireNonNull(text);
 		BitBuffer bb = new BitBuffer();
 		int accumData = 0;
 		int accumCount = 0;
 		for (int i = 0; i < text.length(); i++) {
-			char c = text.charAt(i);
+			@IndexFor("this.ALPHANUMERIC_MAP") char c = text.charAt(i);
 			if (c >= ALPHANUMERIC_MAP.length || ALPHANUMERIC_MAP[c] == -1)
 				throw new IllegalArgumentException("String contains unencodable characters in alphanumeric mode");
 			accumData = accumData * 45 + ALPHANUMERIC_MAP[c];
@@ -204,9 +211,10 @@ public final class QrSegment {
 	 * @throws NullPointerException if the string is {@code null}
 	 * @see #makeAlphanumeric(String)
 	 */
+	@SuppressWarnings("index")
 	public static boolean isAlphanumeric(String text) {
 		for (int i = 0; i < text.length(); i++) {
-			char c = text.charAt(i);
+			@IndexFor("this.ALPHANUMERIC_MAP") char c = text.charAt(i);
 			if (c >= ALPHANUMERIC_MAP.length || ALPHANUMERIC_MAP[c] == -1)
 				return false;
 		}
@@ -245,7 +253,7 @@ public final class QrSegment {
 	 * @throws NullPointerException if the mode or data is {@code null}
 	 * @throws IllegalArgumentException if the character count is negative
 	 */
-	public QrSegment(Mode md, int numCh, int[] data, int bitLen) {
+	public QrSegment(Mode md, @NonNegative int numCh, int[] data, @NonNegative int bitLen) {
 		mode = Objects.requireNonNull(md);
 		this.data = Objects.requireNonNull(data);
 		if (numCh < 0 || bitLen < 0 || bitLen > data.length * 32L)
@@ -258,7 +266,7 @@ public final class QrSegment {
 	// Calculates the number of bits needed to encode the given segments at the given version.
 	// Returns a non-negative number if successful. Otherwise returns -1 if a segment has too
 	// many characters to fit its length field, or the total bits exceeds Integer.MAX_VALUE.
-	static int getTotalBits(List<QrSegment> segs, int version) {
+	static int getTotalBits(List<QrSegment> segs, @IntRange(from = 1, to = 40) int version) {
 		Objects.requireNonNull(segs);
 		long result = 0;
 		for (QrSegment seg : segs) {
@@ -275,9 +283,9 @@ public final class QrSegment {
 	
 	
 	/*---- Constants ----*/
-	
+
 	static final int[] ALPHANUMERIC_MAP;
-	
+
 	static {
 		final String ALPHANUMERIC_CHARSET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
 		int maxCh = -1;
@@ -318,7 +326,7 @@ public final class QrSegment {
 		
 		/*-- Constructor --*/
 		
-		private Mode(int mode, int... ccbits) {
+		private Mode(@IntRange(from = 0, to = 15) int mode, int... ccbits) {
 			modeBits = mode;
 			numBitsCharCount = ccbits;
 		}
@@ -328,7 +336,9 @@ public final class QrSegment {
 		
 		// Returns the bit width of the character count field for a segment in this mode
 		// in a QR Code at the given version number. The result is in the range [0, 16].
-		int numCharCountBits(int ver) {
+		@SuppressWarnings("index") // Since we made sure ver is between MIN_VERSION and MAX_VERSION (1 and 40), it is safe
+		// to access the 3-element array numBitsCharCount with (ver + 7) / 17, as this value is either 0, 1 or 2.
+		int numCharCountBits(@IntRange(from = QrCode.MIN_VERSION, to = QrCode.MAX_VERSION) int ver) {
 			assert QrCode.MIN_VERSION <= ver && ver <= QrCode.MAX_VERSION;
 			return numBitsCharCount[(ver + 7) / 17];
 		}
