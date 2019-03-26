@@ -144,7 +144,7 @@ final class ReedSolomonGenerator {
 	// because it has the same length as polynomialMultiply[i], which means at least 1.
 	public void getRemainder(byte[] data, @IndexFor("#1") int dataOff, @NonNegative @LTLengthOf(value = "#1",offset = "#2") int dataLen, byte @SameLen("this.polynomialMultiply[0]")[] result) {
 		// We need dataOff to be within data bounds. The annotation of dataLen makes sense when we look at the stopping condition
-		// of the for loop on line 149. Also, we need result to be the same length as polynomialMultiply[0] for the assertion below.
+		// of the for loop on line 155. Also, we need result to be the same length as polynomialMultiply[0] for the assertion below.
 		Objects.requireNonNull(data);
 		Objects.requireNonNull(result);
 		int degree = polynomialMultiply[0].length;
