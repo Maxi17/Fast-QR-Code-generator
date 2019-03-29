@@ -23,7 +23,12 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.checker.index.qual.NonNegative;
+import org.checkerframework.checker.index.qual.Positive;
+import org.checkerframework.checker.index.qual.SameLen;
+import org.checkerframework.common.value.qual.ArrayLen;
 import org.checkerframework.common.value.qual.IntRange;
+import org.checkerframework.common.value.qual.IntVal;
 import org.checkerframework.common.value.qual.MinLen;
 
 import java.awt.image.BufferedImage;
@@ -144,6 +149,8 @@ public final class QrCode {
 	 * @throws DataTooLongException if the segments fail to fit in
 	 * the maxVersion QR Code at the ECL, which means they are too long
 	 */
+	@SuppressWarnings("argument") // When calling seg.mode.numCharCountBits(), we know version is between 1 and 31, as
+	// this is the stopping condition of the first for loop below.
 	public static QrCode encodeSegments(List<QrSegment> segs, Ecc ecl, @IntRange(from = MIN_VERSION) int minVersion, @IntRange(to = MAX_VERSION) int maxVersion, @IntRange(from = -1, to = 7) int mask, boolean boostEcl) {
 		Objects.requireNonNull(segs);
 		Objects.requireNonNull(ecl);
@@ -204,11 +211,11 @@ public final class QrCode {
 	
 	/** The version number of this QR Code, which is between 1 and 40 (inclusive).
 	 * This determines the size of this barcode. */
-	public final int version;
+	public final @IntRange(from = 1, to = 40) int version;
 	
 	/** The width and height of this QR Code, measured in modules, between
 	 * 21 and 177 (inclusive). This is equal to version &#xD7; 4 + 17. */
-	public final int size;
+	public final @IntRange(from = 21,  to = 177) int size;
 	
 	/** The error correction level used in this QR Code, which is not {@code null}. */
 	public final Ecc errorCorrectionLevel;
@@ -216,7 +223,7 @@ public final class QrCode {
 	/** The index of the mask pattern used in this QR Code, which is between 0 and 7 (inclusive).
 	 * <p>Even if a QR Code is created with automatic masking requested (mask =
 	 * &#x2212;1), the resulting object still has a mask value between 0 and 7. */
-	public final int mask;
+	public final @IntRange(from = 0, to = 7) int mask;
 	
 	// Private grid of modules/pixels:
 	
@@ -240,7 +247,9 @@ public final class QrCode {
 	 * @throws IllegalArgumentException if the version or mask value is out of range,
 	 * or if the data is the wrong length for the specified version and error correction level
 	 */
-	public QrCode(int ver, Ecc ecl, byte[] dataCodewords, int mask) {
+	@SuppressWarnings("argument") // This may be a bug in the code. handleConstructMasking() should take as an argument
+	// an array of 8 elements, and the code is not guaranteed to offer such an array
+	public QrCode(@IntRange(from = MIN_VERSION, to = MAX_VERSION) int ver, Ecc ecl, byte[] dataCodewords, @IntRange(from = -1, to = 7) int mask) {
 		// Check arguments and initialize fields
 		if (ver < MIN_VERSION || ver > MAX_VERSION)
 			throw new IllegalArgumentException("Version value out of range");
@@ -273,6 +282,8 @@ public final class QrCode {
 	 * @return {@code true} if the coordinates are in bounds and the module
 	 * at that location is black, or {@code false} (white) otherwise
 	 */
+	@SuppressWarnings("index") // Accessing modules array with i / 32 is safe because we only perform this operation
+	// if x and y are within correct bounds. That is, [0,size].
 	public boolean getModule(int x, int y) {
 		if (0 <= x && x < size && 0 <= y && y < size) {
 			int i = y * size + x;
@@ -293,12 +304,13 @@ public final class QrCode {
 	 * @throws IllegalArgumentException if the scale or border is out of range, or if
 	 * {scale, border, size} cause the image dimensions to exceed Integer.MAX_VALUE
 	 */
-	public BufferedImage toImage(int scale, int border) {
+	public BufferedImage toImage(@Positive int scale, @NonNegative int border) {
 		if (scale <= 0 || border < 0)
 			throw new IllegalArgumentException("Value out of range");
 		if (border > Integer.MAX_VALUE / 2 || size + border * 2L > Integer.MAX_VALUE / scale)
 			throw new IllegalArgumentException("Scale or border too large");
-		
+
+		// This method call doesn't issue an error because BufferedImage in jdk is not annotated.
 		BufferedImage result = new BufferedImage((size + border * 2) * scale, (size + border * 2) * scale, BufferedImage.TYPE_INT_RGB);
 		for (int y = 0; y < result.getHeight(); y++) {
 			for (int x = 0; x < result.getWidth(); x++) {
@@ -317,7 +329,7 @@ public final class QrCode {
 	 * @return a string representing this QR Code as an SVG XML document
 	 * @throws IllegalArgumentException if the border is negative
 	 */
-	public String toSvgString(int border) {
+	public String toSvgString(@NonNegative int border) {
 		if (border < 0)
 			throw new IllegalArgumentException("Border must be non-negative");
 		long brd = border;
@@ -349,7 +361,7 @@ public final class QrCode {
 	
 	// Draws two copies of the format bits (with its own error correction code)
 	// based on the given mask and this object's error correction level field.
-	private void drawFormatBits(int mask) {
+	private void drawFormatBits(@IntRange(from = 0, to = 7) int mask) {
 		// Calculate error correction code and pack bits
 		int data = errorCorrectionLevel.formatBits << 3 | mask;  // errCorrLvl is uint2, mask is uint3
 		int rem = data;
@@ -378,7 +390,9 @@ public final class QrCode {
 	
 	// Sets the module at the given coordinates to the given color.
 	// Only used by the constructor. Coordinates must be in bounds.
-	private void setModule(int x, int y, int black) {
+	@SuppressWarnings("index") // Accessing modules with i / 32 is safe because we checked that x and y are valid in the
+	// assertions below
+	private void setModule(@NonNegative int x, @NonNegative int y, @IntVal({0,1}) int black) {
 		assert 0 <= x && x < size;
 		assert 0 <= y && y < size;
 		int i = y * size + x;
@@ -392,9 +406,10 @@ public final class QrCode {
 	
 	
 	/*---- Private helper methods for constructor: Codewords and masking ----*/
-	
+
 	// Returns a new byte string representing the given data with the appropriate error correction
 	// codewords appended to it, based on this object's version and error correction level.
+	@SuppressWarnings({"index", "argument"})
 	private byte[] addEccAndInterleave(byte[] data) {
 		Objects.requireNonNull(data);
 		if (data.length != getNumDataCodewords(version, errorCorrectionLevel))
@@ -429,6 +444,8 @@ public final class QrCode {
 	
 	// Draws the given sequence of 8-bit codewords (data and error correction) onto the entire
 	// data area of this QR Code symbol. Function modules need to be marked off before this is called.
+	@SuppressWarnings("index") // allCodewords can be accessed with i >>> 3 because we at that point we verified
+	// that the allCodewords array is safe with the assertion.
 	private void drawCodewords(int[] dataOutputBitIndexes, byte[] allCodewords) {
 		Objects.requireNonNull(dataOutputBitIndexes);
 		Objects.requireNonNull(allCodewords);
@@ -447,7 +464,7 @@ public final class QrCode {
 	// before masking. Due to the arithmetic of XOR, calling applyMask() with
 	// the same mask value a second time will undo the mask. A final well-formed
 	// QR Code symbol needs exactly one (not zero, two, etc.) mask applied.
-	private void applyMask(int[] mask) {
+	private void applyMask(int @SameLen("this.modules") [] mask) {
 		if (mask.length != modules.length)
 			throw new IllegalArgumentException();
 		for (int i = 0; i < mask.length; i++)
@@ -458,7 +475,12 @@ public final class QrCode {
 	// A messy helper function for the constructor. This QR Code must be in an unmasked state when this
 	// method is called. The given argument is the requested mask, which is -1 for auto or 0 to 7 for fixed.
 	// This method applies and returns the actual mask chosen, from 0 to 7.
-	private int handleConstructorMasking(int[][] masks, int mask) {
+	@SuppressWarnings({"index", "argument", "return"}) // The code is safe because even though mask can be -1 t the beginning, it
+	// can't reach the assertion as 0 because we pick another value for it in the for loop. The call to applyMask() method
+	// is not sfe here and I think can be a bug, because the argument array has to be the same length as this.modules.
+	// However, the code is safe because the method is private and the only time we call it we do it with an already valid argument.
+	// That is in the constructor of the class
+	private @IntRange(from = 0, to = 7) int handleConstructorMasking(int @ArrayLen(8) [][] masks, @IntRange(from = -1, to = 7) int mask) {
 		if (mask == -1) {  // Automatically choose best mask
 			int minPenalty = Integer.MAX_VALUE;
 			for (int i = 0; i < 8; i++) {
@@ -481,6 +503,8 @@ public final class QrCode {
 	
 	// Calculates and returns the penalty score based on state of this QR Code's current modules.
 	// This is used by the automatic mask choice algorithm to find the mask pattern that yields the lowest score.
+	@SuppressWarnings("index") // Accessing 'modules' array with indexes that are divided by 32 is sfe because they start
+	// non-negative and the stopping condition prevents them from going over the limit
 	private int getPenaltyScore() {
 		int result = 0;
 		int black = 0;
@@ -567,7 +591,9 @@ public final class QrCode {
 	// Returns the number of 8-bit data (i.e. not error correction) codewords contained in any
 	// QR Code of the given version number and error correction level, with remainder bits discarded.
 	// This stateless pure function could be implemented as a (40*4)-cell lookup table.
-	static int getNumDataCodewords(int ver, Ecc ecl) {
+	@SuppressWarnings("index") // The two arrays that are accessed below are of fixed size, so this annotation of 'ver'
+	// is safe and consistent with others
+	static int getNumDataCodewords(@IntRange(from = MIN_VERSION, to = MAX_VERSION) int ver, Ecc ecl) {
 		return QrTemplate.getNumRawDataModules(ver) / 8
 			- ECC_CODEWORDS_PER_BLOCK    [ecl.ordinal()][ver]
 			* NUM_ERROR_CORRECTION_BLOCKS[ecl.ordinal()][ver];
@@ -576,7 +602,7 @@ public final class QrCode {
 	
 	// Inserts the given value to the front of the given array, which shifts over the
 	// existing values and deletes the last value. A helper function for getPenaltyScore().
-	private static void addRunToHistory(int run, int[] history) {
+	private static void addRunToHistory(int run, int @MinLen(1) [] history) {
 		System.arraycopy(history, 0, history, 1, history.length - 1);
 		history[0] = run;
 	}
@@ -593,7 +619,7 @@ public final class QrCode {
 	
 	
 	// Returns 0 or 1 based on the (i mod 32)'th bit of x.
-	static int getBit(int x, int i) {
+	static @IntVal({0,1}) int getBit(int x, int i) {
 		return (x >>> i) & 1;
 	}
 	
@@ -648,10 +674,10 @@ public final class QrCode {
 		/** The QR Code can tolerate about 30% erroneous codewords. */ HIGH(2);
 		
 		// In the range 0 to 3 (unsigned 2-bit integer).
-		final int formatBits;
+		final @IntRange(from = 0, to = 3) int formatBits;
 		
 		// Constructor.
-		private Ecc(int fb) {
+		private Ecc(@IntRange(from = 0, to = 3) int fb) {
 			formatBits = fb;
 		}
 	}

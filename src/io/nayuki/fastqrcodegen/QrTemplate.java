@@ -23,9 +23,12 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.common.value.qual.IntRange;
+
+import java.lang.ref.SoftReference;
+
 import static io.nayuki.fastqrcodegen.QrCode.MAX_VERSION;
 import static io.nayuki.fastqrcodegen.QrCode.MIN_VERSION;
-import java.lang.ref.SoftReference;
 
 
 final class QrTemplate {
@@ -298,7 +301,7 @@ final class QrTemplate {
 	// Returns the number of data bits that can be stored in a QR Code of the given version number, after
 	// all function modules are excluded. This includes remainder bits, so it might not be a multiple of 8.
 	// The result is in the range [208, 29648]. This could be implemented as a 40-entry lookup table.
-	static int getNumRawDataModules(int ver) {
+	static @IntRange(from = 208, to = 29648) int getNumRawDataModules(@IntRange(from = MIN_VERSION, to = MAX_VERSION) int ver) {
 		if (ver < MIN_VERSION || ver > MAX_VERSION)
 			throw new IllegalArgumentException("Version number out of range");
 		int result = (16 * ver + 128) * ver + 64;

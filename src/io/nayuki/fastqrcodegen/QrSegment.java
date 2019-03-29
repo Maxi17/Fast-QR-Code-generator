@@ -237,7 +237,7 @@ public final class QrSegment {
 	final int[] data;
 	
 	// Requires 0 <= bitLength <= data.length * 32.
-	final int bitLength;
+	final @NonNegative int bitLength;
 	
 	
 	/*---- Constructor (low level) ----*/

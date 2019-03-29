@@ -25,6 +25,7 @@ package io.nayuki.fastqrcodegen;
 
 import org.checkerframework.checker.index.qual.IndexFor;
 import org.checkerframework.checker.index.qual.NonNegative;
+import org.checkerframework.common.value.qual.IntRange;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -99,11 +100,11 @@ final class BitBuffer {
 	 * @throws IllegalStateException if appending the data
 	 * would make bitLength exceed Integer.MAX_VALUE
 	 */
-	@SuppressWarnings("index")
+	@SuppressWarnings({"index","compound"})
 	// There are 2 errors below, both related to the attempt to access data array using a
 	// bitwise operation on bitLength. Because bitLength >>> 5 has the same effect as bitLength / 32, we can safely
 	// assume that if bitLength is non negative, then so is bitLength / 32.
-	public void appendBits(int val, @NonNegative int len) {
+	public void appendBits(int val, @IntRange(from = 0, to = 31) int len) {
 		if (len < 0 || len > 31 || val >>> len != 0)
 			throw new IllegalArgumentException("Value out of range");
 		if (len > Integer.MAX_VALUE - bitLength)
