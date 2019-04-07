@@ -23,13 +23,14 @@
 
 package io.nayuki.fastqrcodegen;
 
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
-import java.util.Objects;
 import io.nayuki.fastqrcodegen.QrSegment.Mode;
+import org.checkerframework.checker.index.qual.IndexFor;
+import org.checkerframework.checker.index.qual.IndexOrHigh;
+import org.checkerframework.common.value.qual.IntRange;
+import org.checkerframework.common.value.qual.MinLen;
+
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 
 /**
@@ -60,7 +61,7 @@ public final class QrSegmentAdvanced {
 	 * @throws IllegalArgumentException if 1 &#x2264; minVersion &#x2264; maxVersion &#x2264; 40 is violated
 	 * @throws DataTooLongException if the text fails to fit in the maxVersion QR Code at the ECL
 	 */
-	public static List<QrSegment> makeSegmentsOptimally(String text, QrCode.Ecc ecl, int minVersion, int maxVersion) {
+	public static List<QrSegment> makeSegmentsOptimally(String text, QrCode.Ecc ecl, @IntRange(from = QrCode.MIN_VERSION) int minVersion, @IntRange(to = QrCode.MAX_VERSION) int maxVersion) {
 		// Check arguments
 		Objects.requireNonNull(text);
 		Objects.requireNonNull(ecl);
@@ -91,7 +92,7 @@ public final class QrSegmentAdvanced {
 	
 	
 	// Returns a new list of segments that is optimal for the given text at the given version number.
-	private static List<QrSegment> makeSegmentsOptimally(int[] codePoints, int version) {
+	private static List<QrSegment> makeSegmentsOptimally(int[] codePoints, @IntRange(from = QrCode.MIN_VERSION, to = QrCode.MAX_VERSION) int version) {
 		if (codePoints.length == 0)
 			return new ArrayList<>();
 		Mode[] charModes = computeCharacterModes(codePoints, version);
@@ -100,7 +101,8 @@ public final class QrSegmentAdvanced {
 	
 	
 	// Returns a new array representing the optimal mode per code point based on the given text and version.
-	private static Mode[] computeCharacterModes(int[] codePoints, int version) {
+	@SuppressWarnings("index") // I explained each error below
+	private static Mode @MinLen(1) [] computeCharacterModes(int @MinLen(1) [] codePoints, @IntRange(from = QrCode.MIN_VERSION, to = QrCode.MAX_VERSION) int version) {
 		if (codePoints.length == 0)
 			throw new IllegalArgumentException();
 		final Mode[] modeTypes = {Mode.BYTE, Mode.ALPHANUMERIC, Mode.NUMERIC, Mode.KANJI};  // Do not modify
@@ -114,7 +116,7 @@ public final class QrSegmentAdvanced {
 		// charModes[i][j] represents the mode to encode the code point at
 		// index i such that the final segment ends in modeTypes[j] and the
 		// total number of bits is minimized over all possible choices
-		Mode[][] charModes = new Mode[codePoints.length][numModes];
+		Mode[] @MinLen(4) [] charModes = new Mode[codePoints.length][numModes];
 		
 		// At the beginning of each iteration of the loop below,
 		// prevCosts[j] is the exact minimum number of 1/6 bits needed to
@@ -127,10 +129,13 @@ public final class QrSegmentAdvanced {
 			int[] curCosts = new int[numModes];
 			{  // Always extend a byte mode segment
 				curCosts[0] = prevCosts[0] + countUtf8Bytes(c) * 8 * 6;
+				// method countUtfBytes takes as parameter any character in codePoints, asa specified in the documentation
 				charModes[i][0] = modeTypes[0];
 			}
 			// Extend a segment if possible
 			if (QrSegment.ALPHANUMERIC_MAP[c] != -1) {  // Is alphanumeric
+				// ALPHANUMERIC_MAP can be accessed with c because it contains the ASCII values for alphanumeric characters
+				// and -1 for all others, so c surely is in that array
 				curCosts[1] = prevCosts[1] + 33;  // 5.5 bits per alphanumeric char
 				charModes[i][1] = modeTypes[1];
 			}
@@ -139,6 +144,8 @@ public final class QrSegmentAdvanced {
 				charModes[i][2] = modeTypes[2];
 			}
 			if (isKanji(c)) {
+				// isKanji() method can be called with any binary value, including 'c', to checks if the
+				// value is in the array. It doesn't throw any exception
 				curCosts[3] = prevCosts[3] + 78;  // 13 bits per Shift JIS char
 				charModes[i][3] = modeTypes[3];
 			}
@@ -167,7 +174,7 @@ public final class QrSegmentAdvanced {
 		}
 		
 		// Get optimal mode for each code point by tracing backwards
-		Mode[] result = new Mode[charModes.length];
+		Mode @MinLen(1) [] result = new Mode[charModes.length];
 		for (int i = result.length - 1; i >= 0; i--) {
 			for (int j = 0; j < numModes; j++) {
 				if (modeTypes[j] == curMode) {
@@ -183,18 +190,22 @@ public final class QrSegmentAdvanced {
 	
 	// Returns a new list of segments based on the given text and modes, such that
 	// consecutive code points in the same mode are put into the same segment.
-	private static List<QrSegment> splitIntoSegments(int[] codePoints, Mode[] charModes) {
+	@SuppressWarnings("index") // I explained each error below
+	private static List<QrSegment> splitIntoSegments(int[] codePoints, Mode @MinLen(1) [] charModes) {
 		if (codePoints.length == 0)
 			throw new IllegalArgumentException();
 		List<QrSegment> result = new ArrayList<>();
 		
 		// Accumulate run of modes
 		Mode curMode = charModes[0];
-		int start = 0;
+		@IndexOrHigh("#1") int start = 0;
 		for (int i = 1; ; i++) {
 			if (i < codePoints.length && charModes[i] == curMode)
+				// i will always beb within bounds because the method returns when i gets bigger than the length of 'codePoints'.
+				// 'codePoints' always has the same length as 'charModes'
 				continue;
 			String s = new String(codePoints, start, i - start);
+			// i is a valid index of codePoints, 'i - start' is valid because 'i - start + start' is equal to i
 			if (curMode == Mode.BYTE)
 				result.add(QrSegment.makeBytes(s.getBytes(StandardCharsets.UTF_8)));
 			else if (curMode == Mode.NUMERIC)
@@ -207,7 +218,7 @@ public final class QrSegmentAdvanced {
 				throw new AssertionError();
 			if (i >= codePoints.length)
 				return result;
-			curMode = charModes[i];
+			curMode = charModes[i]; // 'i' is a valid index for charModes, as explained above
 			start = i;
 		}
 	}
@@ -226,7 +237,7 @@ public final class QrSegmentAdvanced {
 	
 	
 	// Returns the number of UTF-8 bytes needed to encode the given Unicode code point.
-	private static int countUtf8Bytes(int cp) {
+	private static int countUtf8Bytes(@IntRange(from = 0, to = 1114112) int cp) {
 		if      (cp <        0) throw new IllegalArgumentException("Invalid code point");
 		else if (cp <     0x80) return 1;
 		else if (cp <    0x800) return 2;
@@ -251,6 +262,8 @@ public final class QrSegmentAdvanced {
 	 * @throws IllegalArgumentException if the string contains non-encodable characters
 	 * @see #isEncodableAsKanji(String)
 	 */
+	@SuppressWarnings("index")
+	// Accessing UNICODE_TO_QR_KANJI with c is safe because it contains all characters. The checker is weak in checking lambda expressions.
 	public static QrSegment makeKanji(String text) {
 		Objects.requireNonNull(text);
 		BitBuffer bb = new BitBuffer();
@@ -275,6 +288,7 @@ public final class QrSegmentAdvanced {
 	 * @throws NullPointerException if the string is {@code null}
 	 * @see #makeKanji(String)
 	 */
+	@SuppressWarnings("argument") // I think the checker is weak in checking lambda expressions, it can't see normal cases
 	public static boolean isEncodableAsKanji(String text) {
 		Objects.requireNonNull(text);
 		return text.chars().allMatch(
@@ -282,7 +296,7 @@ public final class QrSegmentAdvanced {
 	}
 	
 	
-	private static boolean isKanji(int c) {
+	private static boolean isKanji(@IndexFor("this.UNICODE_TO_QR_KANJI") int c) {
 		return c < UNICODE_TO_QR_KANJI.length && UNICODE_TO_QR_KANJI[c] != -1;
 	}
 	
@@ -407,7 +421,7 @@ public final class QrSegmentAdvanced {
 		Arrays.fill(UNICODE_TO_QR_KANJI, (short)-1);
 		byte[] bytes = Base64.getDecoder().decode(PACKED_QR_KANJI_TO_UNICODE);
 		for (int i = 0; i < bytes.length; i += 2) {
-			char c = (char)(((bytes[i] & 0xFF) << 8) | (bytes[i + 1] & 0xFF));
+			@IndexFor("this.UNICODE_TO_QR_KANJI") char c = (char)(((bytes[i] & 0xFF) << 8) | (bytes[i + 1] & 0xFF));
 			if (c == 0xFFFF)
 				continue;
 			assert UNICODE_TO_QR_KANJI[c] == -1;

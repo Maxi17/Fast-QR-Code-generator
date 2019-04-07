@@ -23,6 +23,7 @@
 
 package io.nayuki.fastqrcodegen;
 
+import org.checkerframework.common.value.qual.ArrayLen;
 import org.checkerframework.common.value.qual.IntRange;
 
 import java.lang.ref.SoftReference;
@@ -35,7 +36,7 @@ final class QrTemplate {
 	
 	/*---- Factory members ----*/
 	
-	public static QrTemplate getInstance(int version) {
+	public static QrTemplate getInstance(@IntRange(from = MIN_VERSION, to = MAX_VERSION) int version) {
 		if (version < MIN_VERSION || version > MAX_VERSION)
 			throw new IllegalArgumentException("Version out of range");
 		
@@ -75,18 +76,17 @@ final class QrTemplate {
 			}
 		}
 	}
-	
-	
-	@SuppressWarnings("unchecked")
-	private static final SoftReference<QrTemplate>[] cache = new SoftReference[MAX_VERSION + 1];
-	
-	private static final boolean[] isPending = new boolean[MAX_VERSION + 1];
+	// I had to suppress warnings because the checker can't import MAX_VERSION properties correctly.
+	private static final @SuppressWarnings({"assignment", "index"}) SoftReference<QrTemplate> @ArrayLen(MAX_VERSION + 1) [] cache = new SoftReference[MAX_VERSION + 1];
+
+	// I had to suppress warnings because the checker can't import MAX_VERSION properties correctly.
+	private static final @SuppressWarnings({"assignment", "index"}) boolean @ArrayLen(MAX_VERSION + 1) [] isPending = new boolean[MAX_VERSION + 1];
 	
 	
 	
 	/*---- Instance members ----*/
 	
-	private final int version;
+	private final @IntRange(from = 1, to = 40) int version;
 	private final int size;
 	
 	final int[] template;
@@ -97,7 +97,7 @@ final class QrTemplate {
 	private int[] isFunction;
 	
 	
-	private QrTemplate(int ver) {
+	private QrTemplate(@IntRange(from = MIN_VERSION, to = MAX_VERSION) int ver) {
 		if (ver < MIN_VERSION || ver > MAX_VERSION)
 			throw new IllegalArgumentException("Version out of range");
 		version = ver;
@@ -208,7 +208,9 @@ final class QrTemplate {
 		}
 	}
 	
-	
+	@SuppressWarnings("index")
+	// i >>> 5 is always within correct bounds because the second and third for loops execute size * size times, so 'i >>> 5'
+	// will never be greater than mask
 	private int[][] generateMasks() {
 		int[][] result = new int[8][template.length];
 		for (int mask = 0; mask < result.length; mask++) {
@@ -258,7 +260,7 @@ final class QrTemplate {
 		return result;
 	}
 	
-	
+	@SuppressWarnings("index") // Variable 'i' has been calculated one step before, so 'i >>> 5' is valid
 	private int getModule(int[] grid, int x, int y) {
 		assert 0 <= x && x < size;
 		assert 0 <= y && y < size;
@@ -269,6 +271,7 @@ final class QrTemplate {
 	
 	// Marks the module at the given coordinates as a function module.
 	// Also either sets that module black or keeps its color unchanged.
+	@SuppressWarnings("index")  // Variable 'i' has been calculated one step before, so 'i >>> 5' is valid
 	private void darkenFunctionModule(int x, int y, int enable) {
 		assert 0 <= x && x < size;
 		assert 0 <= y && y < size;
@@ -301,6 +304,9 @@ final class QrTemplate {
 	// Returns the number of data bits that can be stored in a QR Code of the given version number, after
 	// all function modules are excluded. This includes remainder bits, so it might not be a multiple of 8.
 	// The result is in the range [208, 29648]. This could be implemented as a 40-entry lookup table.
+	@SuppressWarnings("return") // The checker issues an error because 'result' does not correspond to the return type.
+	// I don't know why the values computed by the checker were between [-928, 30784], because the values for 1 and 40 are
+	// 208 and 29648.
 	static @IntRange(from = 208, to = 29648) int getNumRawDataModules(@IntRange(from = MIN_VERSION, to = MAX_VERSION) int ver) {
 		if (ver < MIN_VERSION || ver > MAX_VERSION)
 			throw new IllegalArgumentException("Version number out of range");

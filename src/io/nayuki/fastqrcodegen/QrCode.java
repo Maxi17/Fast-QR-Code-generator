@@ -59,7 +59,7 @@ import java.util.Objects;
  * @see QrSegment
  */
 public final class QrCode {
-	
+
 	/*---- Static factory functions (high level) ----*/
 	
 	/**
@@ -409,7 +409,7 @@ public final class QrCode {
 
 	// Returns a new byte string representing the given data with the appropriate error correction
 	// codewords appended to it, based on this object's version and error correction level.
-	@SuppressWarnings({"index", "argument"})
+	@SuppressWarnings({"index", "argument"}) // I explained each error below
 	private byte[] addEccAndInterleave(byte[] data) {
 		Objects.requireNonNull(data);
 		if (data.length != getNumDataCodewords(version, errorCorrectionLevel))
@@ -417,7 +417,9 @@ public final class QrCode {
 		
 		// Calculate parameter numbers
 		int numBlocks = NUM_ERROR_CORRECTION_BLOCKS[errorCorrectionLevel.ordinal()][version];
-		int blockEccLen = ECC_CODEWORDS_PER_BLOCK  [errorCorrectionLevel.ordinal()][version];
+		@IntRange(from = 1, to = 30) int blockEccLen = ECC_CODEWORDS_PER_BLOCK  [errorCorrectionLevel.ordinal()][version];
+		// The above 2d-array accessing operations are safe because they are final and have been initialized. 'version'
+		// and 'errorCorrectionLevel' have been previously verified to be correct (errorCorrectionLevel is user's input)
 		int rawCodewords = QrTemplate.getNumRawDataModules(version) / 8;
 		int numShortBlocks = numBlocks - rawCodewords % numBlocks;
 		int shortBlockDataLen = rawCodewords / numBlocks - blockEccLen;
@@ -425,18 +427,25 @@ public final class QrCode {
 		// Split data into blocks, calculate ECC, and interleave
 		// (not concatenate) the bytes into a single sequence
 		byte[] result = new byte[rawCodewords];
-		ReedSolomonGenerator rs = ReedSolomonGenerator.getInstance(blockEccLen);
+		ReedSolomonGenerator rs = ReedSolomonGenerator.getInstance(blockEccLen); // blockEccLen should be between 1 and MAX_DEGREE
+		// for this method call. I hard-coded 30 because getting access to MAX_DEGREE from ReedSolomonGenerator required one extra import
 		byte[] ecc = new byte[blockEccLen];  // Temporary storage per iteration
 		for (int i = 0, k = 0; i < numBlocks; i++) {
 			int datLen = shortBlockDataLen + (i < numShortBlocks ? 0 : 1);
 			rs.getRemainder(data, k, datLen, ecc);
+			// The above method call is safe because k and dataLen can't exceed the limit duo to for loops stopping conditions
+			// and ecc is safe because it has length blockEccLen, which has been verified to have the same length as 'degree'
 			for (int j = 0, l = i; j < datLen; j++, k++, l += numBlocks) {  // Copy data
 				if (j == shortBlockDataLen)
 					l -= numShortBlocks;
 				result[l] = data[k];
+				// 'result' can be accessed with 'l' because the above if statement adjusts it if it exceeds rawCodewords value.
+				// 'data' can be accessed with 'k' because the for loop stops when 'j' reaches 'dataLen', nd 'k' grows exactly as 'j'
 			}
 			for (int j = 0, l = data.length + i; j < blockEccLen; j++, l += numBlocks)  // Copy ECC
 				result[l] = ecc[j];
+			// 'result' can be accessed with 'l' because it has 'rawCodewords' number of spaces, which has been verified to be big
+			// enough places
 		}
 		return result;
 	}

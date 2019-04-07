@@ -112,7 +112,8 @@ public final class QrSegment {
 	 * @throws NullPointerException if the string is {@code null}
 	 * @throws IllegalArgumentException if the string contains non-encodable characters
 	 */
-	@SuppressWarnings("index") //
+	@SuppressWarnings("index") // The line c = text.charAt(i) is safe because ALPHANUMERIC_MAP contains every alphanumeric character
+	// so it contains any character that can be found at that position in 'text' string
 	public static QrSegment makeAlphanumeric(String text) {
 		Objects.requireNonNull(text);
 		BitBuffer bb = new BitBuffer();
@@ -211,7 +212,7 @@ public final class QrSegment {
 	 * @throws NullPointerException if the string is {@code null}
 	 * @see #makeAlphanumeric(String)
 	 */
-	@SuppressWarnings("index")
+	@SuppressWarnings("index") // Just like above, text.charAt(i) will yield a character that can be found in ALPHANUMERIC_MAP
 	public static boolean isAlphanumeric(String text) {
 		for (int i = 0; i < text.length(); i++) {
 			@IndexFor("this.ALPHANUMERIC_MAP") char c = text.charAt(i);
