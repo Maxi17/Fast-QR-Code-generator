@@ -23,6 +23,12 @@
 
 package io.nayuki.fastqrcodegen;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
+import java.util.Objects;
+
 import io.nayuki.fastqrcodegen.QrSegment.Mode;
 import org.checkerframework.checker.index.qual.IndexFor;
 import org.checkerframework.checker.index.qual.IndexOrHigh;
@@ -30,7 +36,6 @@ import org.checkerframework.common.value.qual.IntRange;
 import org.checkerframework.common.value.qual.MinLen;
 
 import java.nio.charset.StandardCharsets;
-import java.util.*;
 
 
 /**

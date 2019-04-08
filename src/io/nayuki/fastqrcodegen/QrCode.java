@@ -409,7 +409,7 @@ public final class QrCode {
 
 	// Returns a new byte string representing the given data with the appropriate error correction
 	// codewords appended to it, based on this object's version and error correction level.
-	@SuppressWarnings({"index", "argument"}) // I explained each error below
+	@SuppressWarnings({"index", "assignment"}) // I explained each error below
 	private byte[] addEccAndInterleave(byte[] data) {
 		Objects.requireNonNull(data);
 		if (data.length != getNumDataCodewords(version, errorCorrectionLevel))
@@ -417,7 +417,7 @@ public final class QrCode {
 		
 		// Calculate parameter numbers
 		int numBlocks = NUM_ERROR_CORRECTION_BLOCKS[errorCorrectionLevel.ordinal()][version];
-		@IntRange(from = 1, to = 30) int blockEccLen = ECC_CODEWORDS_PER_BLOCK  [errorCorrectionLevel.ordinal()][version];
+		@IntRange(from = 1, to = 30) int blockEccLen = ECC_CODEWORDS_PER_BLOCK [errorCorrectionLevel.ordinal()][version];
 		// The above 2d-array accessing operations are safe because they are final and have been initialized. 'version'
 		// and 'errorCorrectionLevel' have been previously verified to be correct (errorCorrectionLevel is user's input)
 		int rawCodewords = QrTemplate.getNumRawDataModules(version) / 8;
