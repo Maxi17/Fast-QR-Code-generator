@@ -134,7 +134,7 @@ public final class QrSegmentAdvanced {
 			int[] curCosts = new int[numModes];
 			{  // Always extend a byte mode segment
 				curCosts[0] = prevCosts[0] + countUtf8Bytes(c) * 8 * 6;
-				// method countUtfBytes takes as parameter any character in codePoints, asa specified in the documentation
+				// method countUtfBytes takes as parameter any character in codePoints, as specified in the documentation
 				charModes[i][0] = modeTypes[0];
 			}
 			// Extend a segment if possible
@@ -149,8 +149,6 @@ public final class QrSegmentAdvanced {
 				charModes[i][2] = modeTypes[2];
 			}
 			if (isKanji(c)) {
-				// isKanji() method can be called with any binary value, including 'c', to checks if the
-				// value is in the array. It doesn't throw any exception
 				curCosts[3] = prevCosts[3] + 78;  // 13 bits per Shift JIS char
 				charModes[i][3] = modeTypes[3];
 			}
@@ -293,15 +291,14 @@ public final class QrSegmentAdvanced {
 	 * @throws NullPointerException if the string is {@code null}
 	 * @see #makeKanji(String)
 	 */
-	@SuppressWarnings("argument") // I think the checker is weak in checking lambda expressions, it can't see normal cases
 	public static boolean isEncodableAsKanji(String text) {
 		Objects.requireNonNull(text);
 		return text.chars().allMatch(
 			c -> isKanji((char)c));
 	}
 	
-	
-	private static boolean isKanji(@IndexFor("this.UNICODE_TO_QR_KANJI") int c) {
+	@SuppressWarnings("index") // Temporarily
+	private static boolean isKanji(int c) {
 		return c < UNICODE_TO_QR_KANJI.length && UNICODE_TO_QR_KANJI[c] != -1;
 	}
 	
